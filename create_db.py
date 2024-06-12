@@ -1,7 +1,7 @@
-import sqlite3
+import sqlite3, config
 
 # Connect to the existing database or create it if it doesn't exist
-connection = sqlite3.connect('C:\\Users\\bphea\\PycharmProjects\\Trading App\\app.db')
+connection = sqlite3.connect(config.DATABASE)
 
 cursor = connection.cursor()
 

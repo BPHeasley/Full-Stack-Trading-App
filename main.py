@@ -10,10 +10,11 @@ from alpaca.data.historical import StockHistoricalDataClient, CryptoHistoricalDa
 from alpaca.data.requests import StockBarsRequest, CryptoBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
+import config
 import create_db
 
-public_key = 'PK1V8KB0XBI8NH2R9HUS'
-private_key = 'DegOkZanWE8FUm2Q19gOcLgF77j7MTDhTcM3pqUG'
+public_key = config.API_KEY
+private_key = config.SECRET_KEY
 trading_client = TradingClient(public_key, private_key, paper=True)
 stock_historical_client = StockHistoricalDataClient(public_key, private_key)
 crypto_historical_client = CryptoHistoricalDataClient(public_key, private_key)

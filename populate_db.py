@@ -1,4 +1,5 @@
 import sqlite3
+import config
 
 from alpaca.trading import TradingClient, GetAssetsRequest, Asset, AssetClass
 
@@ -11,12 +12,9 @@ def add_to_db(asset: Asset):
         print(asset.symbol)
         print(e)
 
-public_key = 'PK1V8KB0XBI8NH2R9HUS'
-private_key = 'DegOkZanWE8FUm2Q19gOcLgF77j7MTDhTcM3pqUG'
+trading_client = TradingClient(config.API_KEY, config.SECRET_KEY, paper=True)
 
-trading_client = TradingClient(public_key, private_key, paper=True)
-
-connection = sqlite3.connect('app.db')
+connection = sqlite3.connect(config.DATABASE)
 
 cursor = connection.cursor()
 
