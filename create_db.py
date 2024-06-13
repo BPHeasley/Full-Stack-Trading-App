@@ -1,4 +1,5 @@
-import sqlite3, config
+import config
+import sqlite3
 
 # Connect to the existing database or create it if it doesn't exist
 connection = sqlite3.connect(config.DATABASE)
@@ -8,7 +9,7 @@ cursor = connection.cursor()
 cursor.execute("""CREATE TABLE IF NOT EXISTS stock (
     id INTEGER PRIMARY KEY,
     symbol TEXT NOT NULL UNIQUE,
-    company TEXT NOT NULL
+    name TEXT NOT NULL
     )
 """)
 
