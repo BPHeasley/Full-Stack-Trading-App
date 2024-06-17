@@ -1,44 +1,65 @@
-import socket
+# import socket
 
-import pandas as pd
-from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import GetAssetsRequest, MarketOrderRequest, LimitOrderRequest, TakeProfitRequest, \
-    StopLossRequest, GetOrdersRequest
-from alpaca.trading.enums import AssetClass, OrderSide, TimeInForce, OrderClass, QueryOrderStatus
-from alpaca.trading.stream import TradingStream
-from alpaca.data.historical import StockHistoricalDataClient, CryptoHistoricalDataClient
-from alpaca.data.requests import StockBarsRequest, CryptoBarsRequest
-from alpaca.data.timeframe import TimeFrame
+# import pandas as pd
+# from alpaca.trading.client import TradingClient
+# from alpaca.trading.requests import GetAssetsRequest, MarketOrderRequest, LimitOrderRequest, TakeProfitRequest, \
+#     StopLossRequest, GetOrdersRequest
+# from alpaca.trading.enums import AssetClass, OrderSide, TimeInForce, OrderClass, QueryOrderStatus
+# from alpaca.trading.stream import TradingStream
+# from alpaca.data.historical import StockHistoricalDataClient, CryptoHistoricalDataClient
+# from alpaca.data.requests import StockBarsRequest, CryptoBarsRequest
+# from alpaca.data.timeframe import TimeFrame
 
-import config
-import create_db
+# import config
+# import create_db
 
-public_key = config.API_KEY
-private_key = config.SECRET_KEY
-trading_client = TradingClient(public_key, private_key, paper=True)
-stock_historical_client = StockHistoricalDataClient(public_key, private_key)
-crypto_historical_client = CryptoHistoricalDataClient(public_key, private_key)
+# public_key = config.API_KEY
+# private_key = config.SECRET_KEY
+# trading_client = TradingClient(public_key, private_key, paper=True)
+# stock_historical_client = StockHistoricalDataClient(public_key, private_key)
+# crypto_historical_client = CryptoHistoricalDataClient(public_key, private_key)
 
-# create historical data request object
-request_params = StockBarsRequest(
-    symbol_or_symbols='SPY',
-    timeframe=TimeFrame.Minute
-)
+import sqlite3, config
+from fastapi import FastAPI
 
-spy_bars = stock_historical_client.get_stock_bars(request_params)
 
-btc_request_params = CryptoBarsRequest(
-    symbol_or_symbols='BTC/USD',
-    timeframe=TimeFrame.Day,
-    start="2024-06-09",
-    end="2024-06-10"
-)
+app = FastAPI()
 
-btc_bars = crypto_historical_client.get_crypto_bars(btc_request_params)
+@app.get("/")
+def index():
+    connection = sqlite3.connect(config.DATABASE)
+    connection.row_factory = sqlite3.Row
+    cursor = connection.cursor()
 
-# Convert to dataframe
-print(spy_bars.df)
-print(btc_bars.df)
+    cursor.execute("""
+        SELECT symbol, name FROM stock
+    """)
+
+    rows = cursor.fetchall()
+
+    return {"message": "Dashboard", "stocks": rows}
+
+
+# # create historical data request object
+# request_params = StockBarsRequest(
+#     symbol_or_symbols='SPY',
+#     timeframe=TimeFrame.Minute
+# )
+#
+# spy_bars = stock_historical_client.get_stock_bars(request_params)
+#
+# btc_request_params = CryptoBarsRequest(
+#     symbol_or_symbols='BTC/USD',
+#     timeframe=TimeFrame.Day,
+#     start="2024-06-09",
+#     end="2024-06-10"
+# )
+#
+# btc_bars = crypto_historical_client.get_crypto_bars(btc_request_params)
+#
+# # Convert to dataframe
+# print(spy_bars.df)
+# print(btc_bars.df)
 
 # # Get our account information
 # account = trading_client.get_account()
