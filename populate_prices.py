@@ -23,14 +23,6 @@ for row in rows:
     symbol = row['symbol']
     stock_dict[symbol] = row['id']
 
-# Create historical data request object for each chunk of 200 symbols
-request_params = StockBarsRequest(
-    symbol_or_symbols=symbols[0],
-    timeframe=TimeFrame.Minute,
-    feed='sip'
-)
-
-bars = stock_historical_client.get_stock_bars(request_params)
 # for bar in bars.data.values():
 #     for info in bar:
 #         stock_id = stock_dict[info.symbol]
