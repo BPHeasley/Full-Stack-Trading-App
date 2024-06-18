@@ -7,7 +7,7 @@ from alpaca.trading import TradingClient, GetAssetsRequest, Asset, AssetClass
 def add_to_db(asset: Asset):
     print("Adding {} to db".format(asset.symbol))
     try:
-        cursor.execute("INSERT INTO stock (symbol, name) VALUES (?, ?)", (asset.symbol, asset.name))
+        cursor.execute("INSERT INTO stock (symbol, name, exchange) VALUES (?, ?, ?)", (asset.symbol, asset.name, asset.exchange))
     except Exception as e:
         print(asset.symbol)
         print(e)
@@ -18,7 +18,7 @@ connection = sqlite3.connect(config.DATABASE)
 
 cursor = connection.cursor()
 
-cursor.execute("""select symbol, name from stock""")
+cursor.execute("""select symbol, name, exchange from stock""")
 rows = cursor.fetchall()
 symbols = [row[0] for row in rows]
 

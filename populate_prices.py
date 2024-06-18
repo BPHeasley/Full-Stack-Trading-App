@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from alpaca.data import StockBarsRequest, TimeFrame, StockHistoricalDataClient
 
 import config
@@ -36,11 +38,14 @@ chunk_size = 200
 for i in range(0, len(symbols), chunk_size):
     # Create a chunk of 200 symbols
     chunk = symbols[i:i + chunk_size]
+    # start (Optional[datetime]): The beginning of the time interval for desired data. Timezone naive inputs assumed to be in UTC.
+    # end (Optional[datetime]): The end of the time interval for desired data. Defaults to now. Timezone naive inputs assumed to be in UTC.
 
     # Create historical data request object for each chunk of 200 symbols
     request_params = StockBarsRequest(
         symbol_or_symbols=chunk,
-        timeframe=TimeFrame.Minute,
+        timeframe=TimeFrame.Day,
+        start=datetime(2024, 6, 1),
         feed='sip'
     )
 
@@ -51,6 +56,6 @@ for i in range(0, len(symbols), chunk_size):
             cursor.execute("""
             insert into stock_price (stock_id, date, open, high, low, close, volume)
             VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                           (stock_id, info.timestamp, info.open, info.high, info.low, info.close, info.volume))
+                           (stock_id, info.timestamp.date().isoformat(), info.open, info.high, info.low, info.close, info.volume))
 
 connection.commit()
