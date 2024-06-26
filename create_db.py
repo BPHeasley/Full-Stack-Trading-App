@@ -41,5 +41,14 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS stock_strategy (
     )
 """)
 
+cursor.execute("""CREATE TABLE IF NOT EXISTS trades (
+    id INTEGER PRIMARY KEY,
+    client_order_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    status TEXT NOT NULL,
+    FOREIGN KEY (id) REFERENCES stock (id)
+    )
+""")
+
 # Commit the changes to the db
 connection.commit()
