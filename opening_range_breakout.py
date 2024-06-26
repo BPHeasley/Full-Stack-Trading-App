@@ -3,11 +3,12 @@ import datetime as date
 import time
 from threading import Thread
 
-from alpaca.data import StockBarsRequest, TimeFrame, StockHistoricalDataClient, DataFeed, Bar
-from alpaca.trading import MarketOrderRequest, TimeInForce, OrderSide, TakeProfitRequest, StopLossRequest
+from alpaca.data import StockBarsRequest, TimeFrame, StockHistoricalDataClient, StockLatestBarRequest
+from alpaca.trading import (MarketOrderRequest, TimeInForce, OrderSide, TakeProfitRequest, StopLossRequest, OrderClass,
+                            OrderStatus)
 from alpaca.trading.client import TradingClient
 
-OPENING_HOUR = 14
+OPENING_HOUR = 13
 OPENING_MINUTE = 30
 CLOSE_MINUTE = 45
 
@@ -19,8 +20,12 @@ threads = []
 def strategy_handler(symbol):
     (opening_range_high, opening_range_difference) = opening_ranges.get(symbol)
 
-    trade_time = end_time
     market_is_open = trading_client.get_clock().is_open
+    symbol_cursor = connection.cursor()
+    symbol_cursor.execute("""
+        SELECT client_order_id FROM trades WHERE symbol = ? AND status = ?
+        """, (symbol, OrderStatus.NEW.capitalize()))
+    client_order_ids = symbol_cursor.fetchall()
 
     # Every minute that the market is open
     # Check if we have an open position on a symbol
@@ -29,43 +34,63 @@ def strategy_handler(symbol):
     while market_is_open:
         if symbol in open_positions:
             print(f"An open position already exists for {symbol}")
+            for client_order_id in client_order_ids:
+                response = trading_client.get_order_by_client_id(client_order_id[0])
+                # Checks if the sell side of the trade was filled and removes the symbol from the list of open positions
+                print(response)
+                for leg in response.legs:
+                    print(leg)
+                    if leg.status == OrderStatus.FILLED and leg.side == OrderSide.SELL:
+                        if symbol in open_positions:
+                            open_positions.remove(symbol)
+                        # add client_order_id to database to recover from app crash
+                        symbol_cursor.execute("""
+                            UPDATE trades set status = ? where client_order_id = ?
+                            """, (OrderStatus.FILLED.capitalize(), client_order_id[0]))
+                        connection.commit()
         else:
-            request_params = StockBarsRequest(
+            print(f"Getting latest {symbol} bar")
+            request_params = StockLatestBarRequest(
                 symbol_or_symbols=symbol,
-                timeframe=TimeFrame.Minute,
-                start=trade_time,
-                feed='sip'
+                feed='iex'
             )
+            latest_bar = stock_historical_client.get_stock_latest_bar(request_params)
+            price = latest_bar.get(symbol).close
+            if price > opening_range_high:
+                # create a market order with a stop loss at price minus difference and take profit at price plus difference
+                take_profit_request = TakeProfitRequest(limit_price=round(price + 0.05, 2))
+                # take_profit_request = TakeProfitRequest(limit_price=round(price + opening_range_difference, 2))
+                stop_loss_request = StopLossRequest(stop_price=round(price - opening_range_difference, 2))
 
-            single_symbol_bars = stock_historical_client.get_stock_bars(request_params)
-            for bar in single_symbol_bars.data.values():
-                for info in bar:
-                    if info.close > opening_range_high and symbol not in open_positions:
-                        # create a market order with a stop loss at high minus difference and take profit at high plus difference
-                        take_profit_request = TakeProfitRequest(limit_price=opening_range_high + opening_range_difference)
-                        stop_loss_request = StopLossRequest(stop_price=opening_range_high - opening_range_difference)
+                bracket_order_data = MarketOrderRequest(
+                    symbol=symbol,
+                    qty=1,
+                    side=OrderSide.BUY,
+                    time_in_force=TimeInForce.DAY,
+                    order_class=OrderClass.BRACKET,
+                    take_profit=take_profit_request,
+                    stop_loss=stop_loss_request,
+                )
 
-                        market_order_data = MarketOrderRequest(
-                            symbol=symbol,
-                            qty=1,
-                            side=OrderSide.BUY,
-                            time_in_force=TimeInForce.DAY,
-                            take_profit=take_profit_request,
-                            stop_loss=stop_loss_request,
-                        )
+                bracket_order = trading_client.submit_order(order_data=bracket_order_data)
 
-                        market_order = trading_client.submit_order(order_data=market_order_data)
-                        trade_time = market_order.created_at.time()
+                open_positions.append(symbol)
 
-                        open_positions.append(symbol)
+                print("Created a bracket order" + str(bracket_order))
+                client_order_id = bracket_order.client_order_id
 
-                        print("Created a market order" + str(market_order))
+                # add client_order_id to database to recover from app crash
+                symbol_cursor.execute("""
+                    INSERT INTO trades (symbol, client_order_id, status) VALUES (?, ?, ?) 
+                """, (symbol, client_order_id, OrderStatus.NEW.capitalize()))
+                connection.commit()
         time.sleep(60)
 
         market_is_open = trading_client.get_clock().is_open
 
 
-connection = sqlite3.connect(config.DATABASE)
+# connection = sqlite3.connect(config.DATABASE)
+connection = sqlite3.connect(config.DATABASE, check_same_thread=False)
 connection.row_factory = sqlite3.Row
 cursor = connection.cursor()
 
@@ -115,7 +140,7 @@ for stock in stocks:
         timeframe=TimeFrame.Minute,
         start=start_time,
         end=end_time,
-        feed='sip'
+        feed='iex'
     )
 
     opening_bars = stock_historical_client.get_stock_bars(request_params)
