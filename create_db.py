@@ -46,6 +46,7 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS trades (
     client_order_id TEXT NOT NULL,
     symbol TEXT NOT NULL,
     status TEXT NOT NULL,
+    date datetime NOT NULL,
     FOREIGN KEY (id) REFERENCES stock (id)
     )
 """)
