@@ -1,9 +1,10 @@
-import sqlite3, config
+import config
 import datetime as date
+import db_utils as db_utils
 import time
 from threading import Thread
 
-from alpaca.data import StockBarsRequest, TimeFrame, StockHistoricalDataClient, StockLatestBarRequest
+from alpaca.data import StockBarsRequest, TimeFrame, StockHistoricalDataClient, StockLatestBarRequest, StockLatestQuoteRequest
 from alpaca.trading import (MarketOrderRequest, TimeInForce, OrderSide, TakeProfitRequest, StopLossRequest, OrderClass,
                             OrderStatus)
 from alpaca.trading.client import TradingClient
@@ -11,6 +12,11 @@ from alpaca.trading.client import TradingClient
 OPENING_HOUR = 13
 OPENING_MINUTE = 30
 CLOSE_MINUTE = 45
+
+OPENING_RANGE_BREAKOUT = 'opening_range_breakout'
+
+stock_historical_client = StockHistoricalDataClient(config.API_KEY, config.SECRET_KEY)
+trading_client = TradingClient(config.API_KEY, config.SECRET_KEY, paper=True)
 
 opening_ranges = {}
 symbols = []
@@ -21,11 +27,6 @@ def strategy_handler(symbol):
     (opening_range_high, opening_range_difference) = opening_ranges.get(symbol)
 
     market_is_open = trading_client.get_clock().is_open
-    symbol_cursor = connection.cursor()
-    symbol_cursor.execute("""
-        SELECT client_order_id FROM trades WHERE symbol = ? AND status = ?
-        """, (symbol, OrderStatus.NEW.capitalize()))
-    client_order_ids = symbol_cursor.fetchall()
 
     # Every minute that the market is open
     # Check if we have an open position on a symbol
@@ -34,33 +35,29 @@ def strategy_handler(symbol):
     while market_is_open:
         if symbol in open_positions:
             print(f"An open position already exists for {symbol}")
+            client_order_ids = db_utils.get_client_order_ids(symbol, OrderStatus.NEW.capitalize())
             for client_order_id in client_order_ids:
                 response = trading_client.get_order_by_client_id(client_order_id[0])
                 # Checks if the sell side of the trade was filled and removes the symbol from the list of open positions
-                print(response)
                 for leg in response.legs:
-                    print(leg)
                     if leg.status == OrderStatus.FILLED and leg.side == OrderSide.SELL:
                         if symbol in open_positions:
                             open_positions.remove(symbol)
-                        # add client_order_id to database to recover from app crash
-                        symbol_cursor.execute("""
-                            UPDATE trades set status = ? where client_order_id = ?
-                            """, (OrderStatus.FILLED.capitalize(), client_order_id[0]))
-                        connection.commit()
+                        # update client_order_id to database for redundancy
+                        db_utils.update_trade_status(client_order_id[0], OrderStatus.FILLED.capitalize(),)
         else:
-            print(f"Getting latest {symbol} bar")
-            request_params = StockLatestBarRequest(
-                symbol_or_symbols=symbol,
-                feed='iex'
-            )
-            latest_bar = stock_historical_client.get_stock_latest_bar(request_params)
-            price = latest_bar.get(symbol).close
-            if price > opening_range_high:
+            print(f"Getting latest {symbol} quote")
+            request_params = StockLatestQuoteRequest(symbol_or_symbols=symbol)
+
+            latest_quote = stock_historical_client.get_stock_latest_quote(request_params)
+            ask_price = latest_quote.get(symbol).ask_price
+            bid_price = latest_quote.get(symbol).bid_price
+
+            if bid_price > opening_range_high:
                 # create a market order with a stop loss at price minus difference and take profit at price plus difference
-                take_profit_request = TakeProfitRequest(limit_price=round(price + 0.05, 2))
-                # take_profit_request = TakeProfitRequest(limit_price=round(price + opening_range_difference, 2))
-                stop_loss_request = StopLossRequest(stop_price=round(price - opening_range_difference, 2))
+                take_profit_request = TakeProfitRequest(limit_price=round(ask_price + 0.10, 2))
+                # take_profit_request = TakeProfitRequest(limit_price=round(ask_price + opening_range_difference, 2))
+                stop_loss_request = StopLossRequest(stop_price=round(bid_price - opening_range_difference, 2))
 
                 bracket_order_data = MarketOrderRequest(
                     symbol=symbol,
@@ -76,41 +73,17 @@ def strategy_handler(symbol):
 
                 open_positions.append(symbol)
 
-                print("Created a bracket order" + str(bracket_order))
+                print("Created a bracket order" + str(bracket_order.client_order_id))
                 client_order_id = bracket_order.client_order_id
 
-                # add client_order_id to database to recover from app crash
-                symbol_cursor.execute("""
-                    INSERT INTO trades (symbol, client_order_id, status) VALUES (?, ?, ?) 
-                """, (symbol, client_order_id, OrderStatus.NEW.capitalize()))
-                connection.commit()
+                # add client_order_id to database for redundancy
+                db_utils.insert_trade(symbol, client_order_id, OrderStatus.NEW.capitalize(), bracket_order.created_at)
         time.sleep(60)
 
         market_is_open = trading_client.get_clock().is_open
 
 
-# connection = sqlite3.connect(config.DATABASE)
-connection = sqlite3.connect(config.DATABASE, check_same_thread=False)
-connection.row_factory = sqlite3.Row
-cursor = connection.cursor()
-
-cursor.execute("""
-    SELECT id FROM strategy
-    WHERE name = 'opening_range_breakout'
-""")
-
-strategy_id = cursor.fetchone()['id']
-
-cursor.execute("""
-    SELECT symbol, name FROM stock
-    JOIN stock_strategy ON stock_strategy.stock_id = stock.id
-    WHERE stock_strategy.strategy_id = ?
-""", (strategy_id,))
-
-stocks = cursor.fetchall()
-
-stock_historical_client = StockHistoricalDataClient(config.API_KEY, config.SECRET_KEY)
-trading_client = TradingClient(config.API_KEY, config.SECRET_KEY, paper=True)
+stocks = db_utils.get_stocks_for_strategy(OPENING_RANGE_BREAKOUT)
 
 year = date.datetime.today().year
 month = date.datetime.today().month
