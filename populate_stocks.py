@@ -12,7 +12,7 @@ def add_to_db(asset: Asset):
         print(asset.symbol)
         print(e)
 
-trading_client = TradingClient(config.API_KEY, config.SECRET_KEY, paper=True)
+trading_client = TradingClient(config.API_KEY, config.SECRET_KEY, paper=config.PAPER)
 
 connection = sqlite3.connect(config.DATABASE)
 

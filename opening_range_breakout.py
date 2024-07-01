@@ -19,17 +19,12 @@ threads = []
 open_positions = stock_utils.get_all_open_positions()
 
 
-async def on_msg(data):
-    # Print the update to the console.
-    print(f"Handle the update on {data}")
-
-
 def strategy_handler(symbol, range_low, range_high):
     # Every minute that the market is open
     # Check if we have an open position on a symbol
     # if we do, wait another minute to see if the trade clears
     # if we don't, check if opening range breakout has occurred
-    order_id = 350
+    order_id = 1
 
     while stock_utils.is_market_open():
         if symbol in open_positions:

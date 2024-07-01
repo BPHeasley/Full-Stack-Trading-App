@@ -7,10 +7,11 @@ from alpaca.trading import TakeProfitRequest, StopLossRequest, MarketOrderReques
 
 import config
 
-trading_client = TradingClient(config.API_KEY, config.SECRET_KEY, paper=True)
+trading_client = TradingClient(config.API_KEY, config.SECRET_KEY, paper=config.PAPER)
 stock_historical_client = StockHistoricalDataClient(config.API_KEY, config.SECRET_KEY)
 
 date = datetime.today().strftime('%Y-%m-%d')
+RETRY_LIMIT = 3
 
 
 def submit_trade(bid_price: float, trade_side: str, symbol: str, id: int):
@@ -36,7 +37,7 @@ def submit_trade(bid_price: float, trade_side: str, symbol: str, id: int):
     )
 
     try_number = 1
-    while try_number <= config.RETRY_LIMIT:
+    while try_number <= RETRY_LIMIT:
         try:
             bracket_order = trading_client.submit_order(order_data=bracket_order_data)
             print("Created a bracket order" + str(bracket_order.client_order_id))

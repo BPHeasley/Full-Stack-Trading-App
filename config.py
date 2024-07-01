@@ -1,6 +1,5 @@
-API_KEY = 'PKKTWLIL11XCRYPI9RU4'
-SECRET_KEY = 'TjtnmZAcgol8T4ejojaB4t6DHeWQtVilAPUle9k2'
+API_KEY = 'Alpaca API KEY'
+SECRET_KEY = 'Alpaca Secret API KEY'
+PAPER = True
 
-DATABASE = 'C:\\Users\\bphea\\PycharmProjects\\Trading App\\app.db'
-
-RETRY_LIMIT = 3
+DATABASE = 'DB path'
