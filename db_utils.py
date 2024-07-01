@@ -21,13 +21,38 @@ def get_stocks_for_strategy(strategy: str):
 
 
 def get_client_order_ids(symbol: str, status: str):
-    cursor.execute("""
-        SELECT client_order_id FROM trades WHERE symbol = ? AND status = ?
-        """, (symbol, status))
+    pending_get = True
+    while pending_get:
+        try:
+            lock.acquire(True)
+            cursor.execute("""
+                SELECT client_order_id FROM trades WHERE symbol = ? AND status = ?
+                """, (symbol, status))
+        except sqlite3.IntegrityError:
+            print(f"Error attempting to fetch ids for symbol {symbol}")
+        finally:
+            lock.release()
+            pending_get = False
+    return cursor.fetchall()
+
+def get_all_client_order_ids_by_symbol(symbol: str):
+    pending_get = True
+    while pending_get:
+        try:
+            lock.acquire(True)
+            cursor.execute("""
+                SELECT client_order_id FROM trades WHERE symbol = ?
+                """, (symbol,))
+        except sqlite3.IntegrityError:
+            print(f"Error attempting to fetch ids for symbol {symbol}")
+        finally:
+            lock.release()
+            pending_get = False
     return cursor.fetchall()
 
 def update_trade_status(client_order_id: str, status: str):
-    while True:
+    pending_read = True
+    while pending_read:
         try:
             lock.acquire(True)
             cursor.execute("""
@@ -35,15 +60,16 @@ def update_trade_status(client_order_id: str, status: str):
                                     """, (status, client_order_id))
             connection.commit()
         except sqlite3.IntegrityError:
-            print(f"Error attepmting to update trade {client_order_id}")
+            print(f"Error attempting to update trade {client_order_id}")
         finally:
             lock.release()
-        break
+            pending_read = False
 
 
 def insert_trade(symbol: str, client_order_id: str, status: str, date: datetime):
-    # add client_order_id to database to recover from app crash
-    while True:
+    # add client_order_id to database for redundancy
+    pending_write = True
+    while pending_write:
         try:
             lock.acquire(True)
             cursor.execute("""
@@ -54,7 +80,7 @@ def insert_trade(symbol: str, client_order_id: str, status: str, date: datetime)
             print(f"Error attempting to insert trade on {symbol}")
         finally:
             lock.release()
-        break
+            pending_write = False
 
 
 connection = sqlite3.connect(config.DATABASE, check_same_thread=False)
