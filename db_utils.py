@@ -4,18 +4,27 @@ import config, sqlite3, threading
 
 
 def get_stocks_for_strategy(strategy: str):
-    cursor.execute("""
-        SELECT id FROM strategy
-        WHERE name = ?
-    """, (strategy,))
+    pending_get = True
+    while pending_get:
+        try:
+            lock.acquire(True)
+            cursor.execute("""
+                SELECT id FROM strategy
+                WHERE name = ?
+            """, (strategy,))
 
-    strategy_id = cursor.fetchone()['id']
+            strategy_id = cursor.fetchone()['id']
 
-    cursor.execute("""
-        SELECT symbol, name FROM stock
-        JOIN stock_strategy ON stock_strategy.stock_id = stock.id
-        WHERE stock_strategy.strategy_id = ?
-    """, (strategy_id,))
+            cursor.execute("""
+                SELECT symbol, name FROM stock
+                JOIN stock_strategy ON stock_strategy.stock_id = stock.id
+                WHERE stock_strategy.strategy_id = ?
+            """, (strategy_id,))
+        except sqlite3.Error:
+            print(f"Error attempting to fetch stocks for strategy {strategy}")
+        finally:
+            lock.release()
+            pending_get = False
 
     return cursor.fetchall()
 
